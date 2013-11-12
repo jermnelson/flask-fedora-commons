@@ -1,6 +1,10 @@
+__version_info__ = ('0', '0', '1')
+__version__ = '.'.join(__version_info__)
 __author__ = "Jeremy Nelson"
-
-from eulfedora.server import Repository
+__license__ = 'Apache License, Version 2.0'
+__copyright__ = '(c) 2013 by Jeremy Nelson'
+                    
+from lib.server import Repository
 from flask import current_app
 
 try:

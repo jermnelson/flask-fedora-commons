@@ -13,7 +13,7 @@ setup(
     name='Flask-FedoraCommons',
     version='0.0.1',
     url='http://github.com/jermnelson/flask-fedora-commons',
-    license='BSD',
+    license='Apache License, Version 2.0',
     author=__author__,
     author_email='jermnelson@gmail.com',
     description='Library for manipulating Fedora Commons digitial repositories',
@@ -23,8 +23,7 @@ setup(
     include_package_data=True,
     platforms='any',
     install_requires=[
-        'Flask',
-        'eulfedora'
+        'Flask'
     ],
     classifiers=[
         'Environment :: Web Environment',
