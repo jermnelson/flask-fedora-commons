@@ -96,7 +96,10 @@ def init_pooled_connection(fedora_root=None):
 # a repository object, basically a handy facade for easy api access
 
 class Repository(object):
-    "Pythonic interface to a single Fedora Commons repository instance."
+    """
+    Pythonic interface to a single Fedora Commons repository instance. Based on
+    Apache2 licensed source code from Emory University's Eulfedora project
+    """
     
     """Connect to a Fedora Repository based on configuration in ``settings.py``.
 
