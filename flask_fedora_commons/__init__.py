@@ -12,6 +12,10 @@ try:
 except ImportError:
     from flask import _request_ctx_stack as stack
 
+import xml.etree.ElementTree as etree
+
+FEDORA_NS = 'info:fedora/fedora-system:def/relations-external#'
+RDF_NS = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#'
 
 class FedoraCommons(object):
     """Class provides an interface to a Fedora Commons digital
@@ -44,7 +48,40 @@ class FedoraCommons(object):
         Returns a :class:`Repository` object initializes with default
         configuration values
         """
-        return Repository()
+        return Repository(root=self.app.config.get('FEDORA_ROOT'),
+                          username=self.app.config.get('FEDORA_USER'),
+                          password=self.app.config.get('FEDORA_PASSWORD'))
+
+    def move(self, source_pid, collection_pid):
+        """
+        Method takes a source_pid and collection_pid, 
+        retrives source_pid RELS-EXT and updates 
+        fedora:isMemberOfCollection value with new collection_pid
+
+        :param source_pid: Source Fedora Object PID
+        :param collection_pid: Collection Fedora Object PID
+        :rtype boolean: True if move was a success
+        """
+        raw_rels_ext = self.repository.api.getDatastreamDissemination(
+            pid=source_pid,
+            dsID='RELS-EXT')
+        rels_ext = etree.XML(raw_rels_ext[0])
+        collection_of = rels_ext.find(
+            '{{{0}}}Description/{{{0}}}isMemberOfCollection'.format(
+                RDF_NS,
+                FEDORA_NS))
+        if collection_of is not None:
+            attrib_key = '{{{0}}}resource'.format(RDF_NS)
+            new_location = "info:fedora/{{{0}}}".format(collection_pid)
+            collection_of.attrib[attrib_key] = new_location
+            self.repository.api.modifyDatastream(pid=source_pid,
+                                                 dsID="RELS-EXT",
+                                                 dsLabel="RELS-EXT",
+                                             mimeType="application/rdf+xml",
+                                             content=etree.tostring(rels_ext))
+            return True
+            
+            
 
     def teardown(self, exception):
         """
@@ -52,12 +89,11 @@ class FedoraCommons(object):
 
         :param exception: Exception to catch during teardown
         """
-        ctx = stack.top
-        if hasattr(ctx, 'repository'):
-            ctx.repository.close()
+        pass
+        ## ctx = stack.top
 
     @property
-    def respository(self):
+    def repository(self):
         """
         Property method function returns or creates a class property for
         a :class:`Repository` instance.

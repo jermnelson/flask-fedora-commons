@@ -25,7 +25,7 @@ import warnings
 
 from poster.encode import multipart_encode, MultipartParam
 
-from eulfedora.util import auth_headers, datetime_to_fedoratime, \
+from util import auth_headers, datetime_to_fedoratime, \
      RequestFailed, parse_rdf
 
 logger = logging.getLogger(__name__)
