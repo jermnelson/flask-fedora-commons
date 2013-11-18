@@ -67,12 +67,12 @@ class FedoraCommons(object):
             dsID='RELS-EXT')
         rels_ext = etree.XML(raw_rels_ext[0])
         collection_of = rels_ext.find(
-            '{{{0}}}Description/{{{0}}}isMemberOfCollection'.format(
+            '{{{0}}}Description/{{{1}}}isMemberOfCollection'.format(
                 RDF_NS,
                 FEDORA_NS))
         if collection_of is not None:
             attrib_key = '{{{0}}}resource'.format(RDF_NS)
-            new_location = "info:fedora/{{{0}}}".format(collection_pid)
+            new_location = "info:fedora/{0}".format(collection_pid)
             collection_of.attrib[attrib_key] = new_location
             self.repository.api.modifyDatastream(pid=source_pid,
                                                  dsID="RELS-EXT",
