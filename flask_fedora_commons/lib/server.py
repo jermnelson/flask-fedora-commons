@@ -62,12 +62,9 @@ from urllib import urlencode
 import logging
 import warnings
 
-##from eulfedora.rdfns import model as modelns
 from api import HTTP_API_Base, ApiFacade, ResourceIndex
-##from eulfedora.models import DigitalObject
 from util import AuthorizingServerConnection, \
      RelativeServerConnection, parse_xml_object, RequestFailed
-##from eulfedora.xml import SearchResults, NewPids
 
 logger = logging.getLogger(__name__)
 

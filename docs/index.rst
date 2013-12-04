@@ -26,19 +26,8 @@ or alternatively if you have pip installed::
 
 Configuration
 -------------
-
-To get started with Flask-FedoraCommons, you need to instanciate a 
-:class:`FedoraCommons` object after configuring the application::
-
-    from flask import Flask
-    from flask_fedora_commons import FedoraCommons
-
-    app = Flask(__name__)
-    app.config.from_pyfile('mysettings.cfg')
-    fedora = FedoraCommons(app)
-
 The fedora object itself can be used to configure the following 
-required settings for this extension:
+required settings (and example values) for this extension:
 
 ====================== ======================================
 `FEDORA_ROOT`          'http://fedora.host.name:8080/fedora/'
@@ -49,6 +38,20 @@ required settings for this extension:
 `FEDORA_TEST_PIDSPACE` 'testme'
 ====================== ======================================
 
+
+Using in a Flask Application
+----------------------------
+To get started with Flask-FedoraCommons, you need to instantiate a 
+:class:`FedoraCommons` object after configuring the application::
+
+    from flask import Flask
+    from flask_fedora_commons import FedoraCommons
+
+    app = Flask(__name__)
+    app.config.from_pyfile('mysettings.cfg')
+    fedora = FedoraCommons(app)
+
+
 API Access to Fedora
 --------------------
 
@@ -58,6 +61,7 @@ repository through the :class:`FedoraCommons` API interface.
 .. toctree::
    :maxdepth: 2
 
+   examples
 
 Classes and Methods
 -------------------
