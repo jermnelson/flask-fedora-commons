@@ -5,7 +5,7 @@ __license__ = 'MIT License'
 __copyright__ = '(c) 2013 by Jeremy Nelson'
                     
 from lib.server import Repository
-from flask import current_app
+from flask import current_app, render_template
 
 try:
     from flask import _app_ctx_stack as stack
@@ -51,6 +51,55 @@ class FedoraCommons(object):
         return Repository(root=self.app.config.get('FEDORA_ROOT'),
                           username=self.app.config.get('FEDORA_USER'),
                           password=self.app.config.get('FEDORA_PASSWORD'))
+
+
+
+    def create_stubs(self,
+                     mods_xml,
+                     title,
+                     parent_pid,
+                     num_objects,
+                     content_model):
+        """
+        Method creates 1-n number of basic Fedora Objects in a repository
+
+        
+        :param mods_xml: MODS XML used for all stub MODS datastreams
+        :param title: Title of Fedora Object
+        :param parent_pid: PID of Parent collection
+        :param num_objects: Number of stub records to create in the parent collection
+        :param content_model: Content model for the stub records, defaults to
+                              adr:adrBasicObject
+        :rtype list: List of PIDS
+        """
+        pids = []
+        for i in xrange(0, int(num_objects)):
+            # Retrieves the next available PID
+            new_pid = self.repository.api.ingest(text=None)
+            print("NEW PID is {0}".format(new_pid))
+            # Sets Stub Record Title
+            self.repository.api.modifyObject(pid=new_pid,
+                                             label=title,
+                                             ownerId=self.app.config.get('FEDORA_USER'),
+                                             state="A")
+            # Adds MODS datastream to the new object
+            self.repository.api.addDatastream(pid=new_pid,
+                                              dsID="MODS",
+                                              dsLabel="MODS",
+                                              mimeType="text/xml",
+                                              content=mods_xml)
+            # Add RELS-EXT datastream
+            rels_ext = render_template('rels-ext.xml',
+                                       object_pid=new_pid,
+                                       content_model=content_model,
+                                       parent_pid=parent_pid)
+            self.repository.api.addDatastream(pid=new_pid,
+                                              dsID="RELS-EXT",
+                                              dsLabel="RELS-EXT",
+                                              mimeType="application/rdf+xml",
+                                              content=rels_ext)
+            pids.append(new_pid)
+        return pids
 
     def move(self, source_pid, collection_pid):
         """
