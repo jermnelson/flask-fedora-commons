@@ -12,14 +12,14 @@ from setuptools import setup
 
 setup(
     name='Flask-FedoraCommons',
-    version='0.0.2',
+    version='0.0.3',
     url='http://github.com/jermnelson/flask-fedora-commons',
     license='MIT License',
     author=__author__,
     author_email='jermnelson@gmail.com',
     description='Library for manipulating Fedora Commons digitial repositories',
     long_description=__doc__,
-    py_modules=['flask_fedora_commons'],
+    packages=['flask_fedora_commons'],
     zip_safe=False,
     include_package_data=True,
     platforms='any',
@@ -27,13 +27,13 @@ setup(
         'Flask'
     ],
     classifiers=[
+        'Framework :: Flask',
         'Environment :: Web Environment',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Operating System :: OS Independent',
         'Programming Language :: Python',
-        'Topic :: Internet :: WWW/HTTP :: Dynamic Content',
-        'Topic :: Software Development :: Framework :: Flask',
+        'Topic :: Internet :: WWW/HTTP :: Dynamic Content',        
         'Topic :: Software Development :: Libraries :: Python Modules'
 
     ]

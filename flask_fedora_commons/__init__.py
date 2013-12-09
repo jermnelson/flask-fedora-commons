@@ -76,7 +76,6 @@ class FedoraCommons(object):
         for i in xrange(0, int(num_objects)):
             # Retrieves the next available PID
             new_pid = self.repository.api.ingest(text=None)
-            print("NEW PID is {0}".format(new_pid))
             # Sets Stub Record Title
             self.repository.api.modifyObject(pid=new_pid,
                                              label=title,
