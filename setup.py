@@ -7,6 +7,8 @@ This Flask extension provides CRUD operations for
 
 """
 __author__ = "Jeremy Nelson"
+__version_info__ = ('0', '0', '5')
+__version__ = '.'.join(__version_info__)
 
 from setuptools import find_packages, setup
 
@@ -14,7 +16,7 @@ from setuptools import find_packages, setup
 
 setup(
     name='Flask-FedoraCommons',
-    version='0.0.5',
+    version=__version__,
     url='http://github.com/jermnelson/flask-fedora-commons',
     license='MIT License',
     author=__author__,
