@@ -12,14 +12,14 @@ from setuptools import setup
 
 setup(
     name='Flask-FedoraCommons',
-    version='0.0.3',
+    version='0.0.4',
     url='http://github.com/jermnelson/flask-fedora-commons',
     license='MIT License',
     author=__author__,
     author_email='jermnelson@gmail.com',
     description='Library for manipulating Fedora Commons digitial repositories',
     long_description=__doc__,
-    packages=['flask_fedora_commons'],
+    py_modules=['flask_fedora_commons'],
     zip_safe=False,
     include_package_data=True,
     platforms='any',
