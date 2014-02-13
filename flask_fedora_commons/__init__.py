@@ -1,9 +1,9 @@
-__version_info__ = ('0', '0', '5')
+__version_info__ = ('0', '0', '6')
 __version__ = '.'.join(__version_info__)
 __author__ = "Jeremy Nelson"
 __license__ = 'MIT License'
 __copyright__ = '(c) 2013 by Jeremy Nelson'
-                    
+
 from lib.server import Repository
 from flask import current_app, render_template
 
@@ -63,7 +63,7 @@ class FedoraCommons(object):
         """
         Method creates 1-n number of basic Fedora Objects in a repository
 
-        
+
         :param mods_xml: MODS XML used for all stub MODS datastreams
         :param title: Title of Fedora Object
         :param parent_pid: PID of Parent collection
@@ -100,10 +100,54 @@ class FedoraCommons(object):
             pids.append(new_pid)
         return pids
 
+    def get_all_pids(self, content_model):
+        """
+        Method returns a list of all pids that match collection's content
+        model.
+
+        :param content_model:
+        """
+        pids = set()
+        all_collections_sparql = '''
+        PREFIX fedora: <info:fedora/fedora-system:def/relations-external#>
+        PREFIX fedora-model: <info:fedora/fedora-system:def/model#>
+        PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+        SELECT $pid
+        FROM <#ri>
+        WHERE {{
+        $pid fedora-model:hasModel <{}>
+        }}'''.format(content_model)
+        for row in self.repository.risearch.sparql_query(all_collections_sparql):
+            collection_pid = row.get('pid').split("/")[-1]
+            for child_pid in self.get_collection_pids(collection_pid):
+                pids.add(child_pid)
+        return list(pids)
+
+    def get_collection_pids(self, collection_pid):
+        """
+        Method returns a list of pids that are in a collection
+
+        :param collection_pid:
+        :rtype list: List of pids
+        """
+        pids = []
+        get_collection_sparql = '''
+        PREFIX fedora: <info:fedora/fedora-system:def/relations-external#>
+        SELECT ?a
+        FROM <#ri>
+        WHERE
+        {{
+          ?a fedora:isMemberOfCollection <info:fedora/{}>
+        }}
+        '''.format(collection_pid)
+        for row in self.repository.risearch.sparql_query(get_collection_sparql):
+            pids.append(row.get('a').split("/")[-1])
+        return output
+
     def move(self, source_pid, collection_pid):
         """
-        Method takes a source_pid and collection_pid, 
-        retrives source_pid RELS-EXT and updates 
+        Method takes a source_pid and collection_pid,
+        retrives source_pid RELS-EXT and updates
         fedora:isMemberOfCollection value with new collection_pid
 
         :param source_pid: Source Fedora Object PID
@@ -128,8 +172,8 @@ class FedoraCommons(object):
                                              mimeType="application/rdf+xml",
                                              content=etree.tostring(rels_ext))
             return True
-            
-            
+
+
 
     def teardown(self, exception):
         """

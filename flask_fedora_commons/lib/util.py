@@ -1,5 +1,5 @@
 # file flask-fedora-commons/lib/util.py
-# 
+#
 #   Copyright 2010,2011 Emory University Libraries
 #   Copyright 2013 Jeremy Nelson
 #
@@ -149,7 +149,7 @@ class RequestFailed(IOError):
                 if len(match):
                     self.detail = match[0]
 
-                    
+
 
 class PermissionDenied(RequestFailed):
     '''An exception representing a permission error while trying to access a
@@ -170,7 +170,7 @@ class ChecksumMismatch(RequestFailed):
         # Use find/substring to pull out the checksum mismatch information
         if self.error_label in self.detail:
             self.detail = self.detail[self.detail.find(self.error_label):]
- 
+
     def __str__(self):
         return self.detail
 
@@ -190,7 +190,7 @@ class HttpServerConnection(object):
         elif self.urlparts.scheme == 'https':
             #self.connection_class = httplib.HTTPSConnection
             self.connection_class = streaminghttp.StreamingHTTPSConnection
-        
+
         self.thread_local = threading.local()
 
     def request(self, method, url, body=None, headers=None, throw_errors=True):
@@ -227,7 +227,7 @@ class HttpServerConnection(object):
 
         # either we didn't have a conn, or we had one but it failed
         self._get_connection()
-        
+
         # now try sending the request again. this is the first time for this
         # new connection. if this fails, all hope is lost. just try to tidy
         # up a little then propagate the exception.
@@ -246,7 +246,7 @@ class HttpServerConnection(object):
     def _reset_connection(self):
         self.thread_local.connection.close()
         self.thread_local.connection = None
-        
+
     def _make_request(self, method, url, body, headers):
         start = time.time()
         url = self._sanitize_url(url)
@@ -342,20 +342,20 @@ def parse_rdf(data, url, format=None):
         graph.parse(fobj, format=format)
     return graph
 
-def parse_xml_object(cls, data, url):
+def parse_xml_object(data, url):
 ##    doc = xmlmap.parseString(data, url)
-    doc = etree.fromstrong(data)
-    return cls(doc)
+    doc = etree.fromstring(data)
+    return doc
 
 def datetime_to_fedoratime(datetime):
     # format a date-time in a format fedora can handle
     # make sure time is in UTC, since the only time-zone notation Fedora seems able to handle is 'Z'
-    utctime = datetime.astimezone(tzutc())      
+    utctime = datetime.astimezone(tzutc())
     return utctime.strftime('%Y-%m-%dT%H:%M:%S') + '.%03d' % (utctime.microsecond/1000) + 'Z'
 
 
 def fedoratime_to_datetime(rep):
-    if rep.endswith('Z'):       
+    if rep.endswith('Z'):
         rep = rep[:-1]      # strip Z for parsing
         tz = tzutc()
         # strptime creates a timezone-naive datetime

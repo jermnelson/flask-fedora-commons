@@ -7,7 +7,7 @@ This Flask extension provides CRUD operations for
 
 """
 __author__ = "Jeremy Nelson"
-__version_info__ = ('0', '0', '5')
+__version_info__ = ('0', '0', '6')
 __version__ = '.'.join(__version_info__)
 
 from setuptools import find_packages, setup
@@ -40,7 +40,7 @@ setup(
         'License :: OSI Approved :: MIT License',
         'Operating System :: OS Independent',
         'Programming Language :: Python',
-        'Topic :: Internet :: WWW/HTTP :: Dynamic Content',        
+        'Topic :: Internet :: WWW/HTTP :: Dynamic Content',
         'Topic :: Software Development :: Libraries :: Python Modules'
 
     ]
