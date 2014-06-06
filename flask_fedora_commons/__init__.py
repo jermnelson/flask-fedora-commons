@@ -4,7 +4,7 @@ __author__ = "Jeremy Nelson"
 __license__ = 'MIT License'
 __copyright__ = '(c) 2013, 2014 by Jeremy Nelson'
 
-from lib.server import Repository
+from repository import Repository
 from flask import current_app, render_template
 
 try:

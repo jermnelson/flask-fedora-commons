@@ -59,5 +59,22 @@ class Repository(object):
         """
         pass
 
+    # Provides standard CRUD operations on a Fedora Object
+    def create(self, url=None, workspace=None):
+        pass
+
+
+    def delete(self, url):
+        pass
+
+    def read(self, url):
+        pass
+
+    def update(self, url, data):
+        pass
+
+
+
+
 
 

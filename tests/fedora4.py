@@ -13,8 +13,17 @@
 __author__ = "Jeremy Nelson"
 import unittest
 
-def main():
-    pass
+from flask import Flask, current_app
+
+class TestFedoraCommons(unittest.TestCase):
+
+    def setUp(self):
+        pass
+
+
+
+    def tearDown(self):
+        pass
 
 if __name__ == '__main__':
-    main()
+    unittest.main()
