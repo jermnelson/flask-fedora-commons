@@ -2,7 +2,7 @@ __version_info__ = ('0', '0', '6')
 __version__ = '.'.join(__version_info__)
 __author__ = "Jeremy Nelson"
 __license__ = 'MIT License'
-__copyright__ = '(c) 2013 by Jeremy Nelson'
+__copyright__ = '(c) 2013, 2014 by Jeremy Nelson'
 
 from lib.server import Repository
 from flask import current_app, render_template
@@ -15,6 +15,7 @@ except ImportError:
 import xml.etree.ElementTree as etree
 
 FEDORA_NS = 'info:fedora/fedora-system:def/relations-external#'
+FOXML_NS = 'info:fedora/fedora-system:def/foxml#'
 RDF_NS = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#'
 
 class FedoraCommons(object):
@@ -100,12 +101,15 @@ class FedoraCommons(object):
             pids.append(new_pid)
         return pids
 
-    def get_all_pids(self, content_model):
-        """
-        Method returns a list of all pids that match collection's content
-        model.
+    def get_all_pids(self, content_model, only_active=True):
+        """Method returns a list of all pids matching collection's content model.
 
-        :param content_model:
+        Args:
+            content_model: Fedora Content Model for the Collection
+            only_active: Boolean, include only active Fedora Objects in result
+
+        Returns:
+            list: List of PIDS in the Repository
         """
         pids = set()
         all_collections_sparql = '''
@@ -119,16 +123,21 @@ class FedoraCommons(object):
         }}'''.format(content_model)
         for row in self.repository.risearch.sparql_query(all_collections_sparql):
             collection_pid = row.get('pid').split("/")[-1]
-            for child_pid in self.get_collection_pids(collection_pid):
+            for child_pid in self.get_collection_pids(collection_pid,
+                                                      only_active):
                 pids.add(child_pid)
         return list(pids)
 
-    def get_collection_pids(self, collection_pid):
+    def get_collection_pids(self, collection_pid, only_active=True):
         """
         Method returns a list of pids that are in a collection
 
-        :param collection_pid:
-        :rtype list: List of pids
+        Parameters:
+            collection_pid: Collection PID
+            only_active: Boolean, include only active Fedora Objects in result
+
+        Returns:
+            list: List of pids
         """
         pids = []
         get_collection_sparql = '''
@@ -141,8 +150,16 @@ class FedoraCommons(object):
         }}
         '''.format(collection_pid)
         for row in self.repository.risearch.sparql_query(get_collection_sparql):
-            pids.append(row.get('a').split("/")[-1])
-        return output
+            pid = row.get('a').split("/")[-1]
+            if only_active is True:
+                fo_xml = etree.XML(self.repository.api.getObjectXML(pid)[0])
+                fo_state = fo_xml.find(
+                "{{{0}}}objectProperties/{{{0}}}property[@NAME='info:fedora/fedora-system:def/model#state']".format(FOXML_NS))
+                if fo_state.attrib["VALUE"].startswith("Active"):
+                    pids.append(pid)
+            else:
+                pids.append(pid)
+        return pids
 
     def move(self, source_pid, collection_pid):
         """

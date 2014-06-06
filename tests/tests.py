@@ -3,7 +3,6 @@ __author__ = "Jeremy Nelson"
 import os
 import sys
 import unittest
-print(os.path.split(os.getcwd())[0])
 sys.path.append(os.path.split(os.getcwd())[0])
 
 from flask import Flask, current_app
@@ -33,8 +32,8 @@ class FedoraCommonsTest(unittest.TestCase):
             self.assertIn(fedora_var, self.app.config)
         self.assertEquals(self.app.config['FEDORA_ROOT'],
                           'http://localhost:8080/fedora/')
-        
-    def test_init(self):        
+
+    def test_init(self):
         fedora = FedoraCommons(self.app)
         self.assert_(fedora.app)
 
@@ -46,16 +45,16 @@ class FedoraCommonsTest(unittest.TestCase):
     def test_move(self):
         fedora = FedoraCommons(self.app)
         self.assert_(not fedora.move('fedora:5', 'fedora:2'))
-        
+
 
     def test_repository(self):
         fedora = FedoraCommons(self.app)
         self.assert_(not fedora.repository)
-        
+
 
     def tearDown(self):
         pass
-    
+
 
 
 if __name__ == '__main__':
