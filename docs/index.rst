@@ -12,6 +12,12 @@ Flask-FedoraCommons is an extension to `Flask`_ that provides an interface
 to the open-source `Fedora Commons`_ digital repository. Certain modules from the 
 `Eulfedora`_ project were forked and included as libraries in this extension.
 
+Fedora 4
+--------
+`Fedora 4`_ support is now in active development in this extension. will be merged 
+into the main branch when `Fedora 4`_ is out of beta release.  
+
+
 Installation
 ------------
 
@@ -62,6 +68,8 @@ repository through the :class:`FedoraCommons` API interface.
    :maxdepth: 2
 
    examples
+   fedora4
+   python3
 
 Classes and Methods
 -------------------
@@ -81,4 +89,5 @@ Indices and tables
 
 .. _Eulfedora: https://github.com/emory-libraries/eulfedora/
 .. _Fedora Commons: http://fedora-commons.org/
+.. _Fedora 4: https://wiki.duraspace.org/display/FF/Fedora+Repository+Home
 .. _Flask: http://flask.pocoo.org/
