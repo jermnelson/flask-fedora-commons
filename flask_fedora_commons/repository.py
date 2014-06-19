@@ -150,7 +150,7 @@ class Repository(object):
 
     def flush(self):
         """Method flushes repository, deleting all objects"""
-        base_graph = rdflib.Graph().parse('{}/rest/'.format(self.base_url))
+        base_graph = rdflib.Graph().parse('{}rest'.format(self.base_url))
         has_child = rdflib.URIRef(
             'http://fedora.info/definitions/v4/repository#hasChild')
         for obj in base_graph.objects(
