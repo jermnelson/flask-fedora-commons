@@ -10,6 +10,7 @@
 #-------------------------------------------------------------------------------
 import json
 import rdflib
+from string import Template
 from urllib.error import URLError
 import urllib.request
 import urllib.parse
@@ -24,26 +25,23 @@ class Repository(object):
     """
 
     def __init__(self, **kwargs):
-        self.base_url = kwargs.get('base_url', 'http://localhost:8080/')
+        self.base_url = kwargs.get('base_url', 'http://localhost:8080')
+        if self.base_url.endswith("/"):
+            self.base_url = self.base_url[:-1]
 
 
-
-    def __connect__(self, fragment='rest/', data={}, method='GET'):
+    def __connect__(self, fedora_url, data={}, method='GET'):
         """Internal method attempts to connect to REST servers of the Fedora
         Commons repository using optional data parameter.
 
         Args:
-            fragment(dict): URL fragment
+            fedora_url(string): Fedora URL
             data(dict): Data to through to REST endpoint
 
         Returns:
             result(string): Response string from Fedora
 
         """
-        # Insures we're using the Fedora 4 REST services
-##        if not fragment.startswith('rest'):
-##            fragment = 'rest/{}'.format(fragment)
-        fedora_url = urllib.parse.urljoin(self.base_url, fragment)
         request = urllib.request.Request(fedora_url,
                                          method=method)
         request.add_header('Accept', 'text/turtle')
@@ -64,7 +62,7 @@ class Repository(object):
             raise e
         return response
 
-        return fedora_graph
+
 
     def __dedup__(self, subject, graph):
         """Internal method takes a RDF graph, cycles through the RDFS
@@ -89,10 +87,12 @@ class Repository(object):
                 sparql_url = urllib.parse.urljoin(
                     self.base_url,
                     "rest/fcr:sparql")
-                sparql_query = """SELECT ?x
-                WHERE \{ ?x <{0}> "{1}" \}""".format(
-                    uri,
-                    obj_uri)
+
+                sparql_template = Template("""SELECT ?x
+                WHERE { ?x <$uri> "$obj_uri" \}""")
+                sparql_query = sparql_template.substitute(
+                    uri=uri,
+                    obj_uri=obj_uri)
                 search_request = urllib.request.Request(
                     sparql_url,
                     data=sparql_query.encode())
@@ -134,12 +134,8 @@ class Repository(object):
         existing_entity = self.__dedup__(rdflib.URIRef(uri), graph)
         if existing_entity:
             return # Returns nothing
-        print(rdflib.URIRef(uri), graph)
-        # Replace all external subject uri with fedora base_url
-        split_result = urllib.parse.urlsplit(uri)
-
         create_response = self.__connect__(
-            split_result.path,
+            uri,
             data=graph.serialize(format='turtle'),
             method='PUT')
         return create_response.read()
@@ -150,7 +146,7 @@ class Repository(object):
 
     def flush(self):
         """Method flushes repository, deleting all objects"""
-        base_graph = rdflib.Graph().parse('{}rest'.format(self.base_url))
+        base_graph = rdflib.Graph().parse('{}/rest'.format(self.base_url))
         has_child = rdflib.URIRef(
             'http://fedora.info/definitions/v4/repository#hasChild')
         for obj in base_graph.objects(
