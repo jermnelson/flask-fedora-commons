@@ -23,6 +23,7 @@ class Repository(object):
     """Python object wrapper around a Fedora 4 digital repository
 
     """
+    literal_set = set(['Text', 'Number', 'Date'])
 
     def __init__(self, **kwargs):
         self.base_url = kwargs.get('base_url', 'http://localhost:8080')
@@ -77,6 +78,8 @@ class Repository(object):
         Returns:
             graph(rdflib.Graph): Existing RDF Graph in Fedora or None
         """
+        if graph is None:
+            return
         for uri in [BF_NS.authorizedAccessPoint,
                     rdflib.RDFS.label,
                     MADS_NS.authoritativeLabel]:
@@ -119,7 +122,7 @@ class Repository(object):
         pass
 
     # Provides standard CRUD operations on a Fedora Object
-    def create(self, uri, graph):
+    def create(self, uri, graph=None):
         """Method takes a URL and a graph, first checking if the URL is already
         present in Fedora, if not, creates a Fedora Object with the graph as
         properties
@@ -134,15 +137,28 @@ class Repository(object):
         existing_entity = self.__dedup__(rdflib.URIRef(uri), graph)
         if existing_entity:
             return # Returns nothing
-        create_response = self.__connect__(
-            uri,
-            data=graph.serialize(format='turtle'),
-            method='PUT')
+        if graph is not None:
+            create_response = self.__connect__(
+                uri,
+                data=graph.serialize(format='turtle'),
+                method='PUT')
+        else:
+            # Creates a stub Fedora object for the uri
+            create_response = self.__connect__(uri,
+                method='PUT')
         return create_response.read()
 
     def delete(self, uri):
         delete_response = self.__connect__(uri, method='DELETE')
         return True
+
+    def exists(self, entity_id):
+        entity_uri = "/".join([self.base_url, entity_id])
+        try:
+            urllib.request.urlopen(entity_uri)
+            return True
+        except urllib.error.HTTPError:
+            return False
 
     def flush(self):
         """Method flushes repository, deleting all objects"""
@@ -153,7 +169,6 @@ class Repository(object):
             predicate=has_child):
                 self.delete(str(obj))
 
-
     def read(self, uri):
         read_response = self.__connect__(uri)
         fedora_graph = rdflib.Graph().parse(
@@ -162,12 +177,14 @@ class Repository(object):
         return fedora_graph
 
     def search(self, query_term):
-        fedora_search_url = urllib.parse.urljoin(self.base_url,
-                                                 'fcr:search')
+        fedora_search_url = "/".join([self.base_url, 'rest', 'fcr:search'])
+        fedora_search_url = "{}?{}".format(
+            fedora_search_url,
+            urllib.parse.urlencode({"q": query_term}))
         search_request = urllib.request.Request(
-            fedora_url,
-            data=urllib.parse.urlencode({"q": query_term}))
-        request.add_header('Accept', 'text/turtle')
+            fedora_search_url,
+            method='GET')
+        search_request.add_header('Accept', 'text/turtle')
         try:
             search_response = urllib.request.urlopen(search_request)
         except URLError as e:
@@ -176,8 +193,51 @@ class Repository(object):
             format='turtle')
         return fedora_results
 
-    def update(self, url, data):
-        pass
+    def update_entity(self,
+                      entity_id,
+                      property_name,
+                      value):
+        """Method updates a Entity's property in Fedora4
+
+        Args:
+            entity_id(string): Unique ID of Fedora object
+            property_name(string): Name of property
+            value: Value of the property
+
+        Returns:
+            boolean: True if successful changed in Fedora, False otherwise
+        """
+        entity_uri = "/".join([self.base_url, 'rest', entity_id])
+        if not self.exists(entity_id):
+            self.create(entity_id)
+        ranges_set = set(schema_json['properties'][property_name]['ranges'])
+        prefix = """PREFIX schema: <http://schema.org/>
+            bf: <http://bibframe.org>
+            dc: <http://purl.org/dc/elements/1.1/>
+            rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>"""
+        if len(Repository.literal_set.intersection(ranges_set)) > 0:
+            sparql_template = Template("""{}
+        INSERT DATA {
+            <$entity> $prop_name "$prop_value"
+        }""".format(prefix))
+        else:
+            sparql_template = Template("""{}
+        INSERT DATA {
+            <$entity> $prop_name <$prop_value>
+        }""".format(prefix))
+        sparql = sparql_template.substitute(
+            entity=entity_uri,
+            prop_name="schema:{}".format(property_name),
+            prop_value=value)
+        update_request = urllib.request.Request(
+            entity_uri,
+            data=sparql.encode(),
+            method='PATCH',
+            headers={'Content-Type': 'application/sparql-update'})
+        response = urllib.request.urlopen(update_request)
+        if response.code < 400:
+            return True
+        return False
 
 
 
