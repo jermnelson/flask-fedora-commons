@@ -115,11 +115,26 @@ class Repository(object):
                     print("Error with sparql query:\n{}".format(sparql_query))
 
 
+
+
     def __transaction__(self):
         """Internal method uses Fedora 4 transactions to wrap up a series of
         REST operations in a single transaction.
         """
         pass
+
+
+    def as_json(self,
+                entity_url):
+        try:
+            urllib.request.urlopen(entity_url)
+        except urllib.error.HTTPError:
+            abort(404)
+        entity_graph = self.read(entity_url)
+        entity_json = json.loads(
+            entity_graph.serialize(
+                format='json-ld').decode())
+        return json.dumps(entity_json)
 
     # Provides standard CRUD operations on a Fedora Object
     def create(self, uri, graph=None):
@@ -176,6 +191,53 @@ class Repository(object):
             format='turtle')
         return fedora_graph
 
+    def replace(self,
+                entity_id,
+                property_name,
+                old_value,
+                value):
+        """Method replaces a triple for the given entity/subject. Property
+        name is from the schema.org vocabulary.
+
+
+        """
+        if not entity_id.startswith("http"):
+            entity_uri = urllib.parse.urljoin(fedora_base, entity_id)
+        else:
+            entity_uri = entity_id
+        if len(literal_set.intersection(
+            ['properties'][property_name]['ranges'])) < 1 or\
+            not 'ranges' in ['properties'][property_name]:
+            sparql_template = Template("""PREFIX schema: <http://schema.org/>
+            DELETE {
+             <$entity> $prop_name <$old_value>
+            } INSERT {
+             <$entity> $prop_name <$new_value>
+            } WHERE {
+            }""")
+        else:
+            sparql_template = Template("""PREFIX schema: <http://schema.org/>
+            DELETE {
+             <$entity> $prop_name "$old_value"
+            } INSERT {
+             <$entity> $prop_name "$new_value"
+            } WHERE {
+            }""")
+        sparql = sparql_template.substitute(
+            entity=entity_uri,
+            prop_name="schema:{}".format(property_name),
+            old_value=old_value,
+            new_value=value)
+        update_request = urllib.request.Request(
+            entity_uri,
+            data=sparql.encode(),
+            method='PATCH',
+            headers={'Content-Type': 'application/sparql-update'})
+        response = urllib.request.urlopen(update_request)
+        if response.code < 400:
+            return True
+        return False
+
     def search(self, query_term):
         fedora_search_url = "/".join([self.base_url, 'rest', 'fcr:search'])
         fedora_search_url = "{}?{}".format(
@@ -193,38 +255,38 @@ class Repository(object):
             format='turtle')
         return fedora_results
 
-    def update_entity(self,
-                      entity_id,
-                      property_name,
-                      value):
-        """Method updates a Entity's property in Fedora4
+    def update(self,
+               entity_id,
+               property_name,
+               value):
+        """Method updates the Entity's property in Fedora4 Repository
 
         Args:
             entity_id(string): Unique ID of Fedora object
-            property_name(string): Name of property
-            value: Value of the property
+            property_name(string): Name of schema.org property
+            value: Value of the schema.org property
 
         Returns:
             boolean: True if successful changed in Fedora, False otherwise
         """
-        entity_uri = "/".join([self.base_url, 'rest', entity_id])
-        if not self.exists(entity_id):
-            self.create(entity_id)
+        if not entity_id.startswith("http"):
+            entity_uri = urllib.parse.urljoin(fedora_base, entity_id)
+        else:
+            entity_uri = entity_id
+        if not entity_exists(entity_id):
+            create_entity(entity_id)
+        print(entity_uri)
         ranges_set = set(schema_json['properties'][property_name]['ranges'])
-        prefix = """PREFIX schema: <http://schema.org/>
-            bf: <http://bibframe.org>
-            dc: <http://purl.org/dc/elements/1.1/>
-            rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>"""
-        if len(Repository.literal_set.intersection(ranges_set)) > 0:
-            sparql_template = Template("""{}
+        if len(literal_set.intersection(ranges_set)) > 0:
+            sparql_template = Template("""PREFIX schema: <http://schema.org/>
         INSERT DATA {
             <$entity> $prop_name "$prop_value"
-        }""".format(prefix))
+        }""")
         else:
-            sparql_template = Template("""{}
+            sparql_template = Template("""PREFIX schema: <http://schema.org/>
         INSERT DATA {
             <$entity> $prop_name <$prop_value>
-        }""".format(prefix))
+        }""")
         sparql = sparql_template.substitute(
             entity=entity_uri,
             prop_name="schema:{}".format(property_name),
