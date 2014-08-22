@@ -4,6 +4,10 @@ __author__ = "Jeremy Nelson"
 __license__ = 'MIT License'
 __copyright__ = '(c) 2013, 2014 by Jeremy Nelson'
 
+import json
+import rdflib
+import urllib
+
 from flask import current_app, render_template
 
 
@@ -95,7 +99,8 @@ class Repository(object):
         entity_graph = self.read(entity_url)
         entity_json = json.loads(
             entity_graph.serialize(
-                format='json-ld').decode())
+                format='json-ld',
+                context=context).decode())
         return json.dumps(entity_json)
 
         # Provides standard CRUD operations on a Fedora Object
@@ -126,7 +131,7 @@ class Repository(object):
         return create_response.read()
 
     def delete(self, uri):
-        delete_response = self.__connect__(uri, method='DELETE')
+        delete_response = self.connect(uri, method='DELETE')
         return True
 
     def exists(self, entity_id):
@@ -147,7 +152,7 @@ class Repository(object):
                 self.delete(str(obj))
 
     def read(self, uri):
-        read_response = self.__connect__(uri)
+        read_response = self.connect(uri)
         fedora_graph = rdflib.Graph().parse(
             data=read_response.read(),
             format='turtle')
