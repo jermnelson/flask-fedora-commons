@@ -9,12 +9,30 @@ import rdflib
 import urllib
 
 from flask import current_app, render_template
+from string import Template
 
+try:
+    from flask import _app_ctx_stack as stack
+except ImportError:
+    from flask import _request_ctx_stack as stack
+
+BIBFRAME = rdflib.Namespace("http://bibframe.org/vocab/")
+FEDORA_BASE_URL = "http://localhost:8080"
+MADS = rdflib.Namespace("http://www.loc.gov/standards/mads/")
+SCHEMA_ORG = rdflib.Namespace("http://schema.org/")
+
+schema_json = json.loads(
+    urllib.request.urlopen('http://schema.rdfs.org/all.json').read().decode())
 
 class Repository(object):
     """Class provides an interface to a Fedora Commons digital
      repository.
      """
+    DEFAULT_ID_URIS = [
+        BIBFRAME.authorizedAccessPoint,
+        rdflib.RDFS.label,
+        MADS.authoritativeLabel]
+    LITERAL_SET = set(["Text", "Number", "Date", "Duration"])
 
     def __init__(self, app=None, base_url='http://localhost:8080'):
         """
@@ -30,6 +48,54 @@ class Repository(object):
             self.init_app(app)
         self.base_url = base_url
 
+    def __dedup__(self,
+                  subject,
+                  graph):
+        """Internal method takes a RDF graph, cycles through the RDFS
+        label and BIBFRAME authorizedAccessPoint triples to see if the graph's
+        entity already exists in Fedora. As other searchable unique triples are
+        added from other vocabularies, they should be added to this method.
+
+        Args:
+            subject(rdflib.rdflibURIRef): RDF Subject URI
+            graph(rdflib.Graph): RDF Graph
+
+        Returns:
+            graph(rdflib.Graph): Existing RDF Graph in Fedora or None
+        """
+        if graph is None:
+            return
+        for uri in Repository.DEFAULT_ID_URIS:
+            # Checks for duplicates
+            for obj_uri in graph.objects(
+                subject=subject,
+                predicate=uri):
+                sparql_url = urllib.parse.urljoin(
+                    self.base_url,
+                    "rest/fcr:sparql")
+                sparql_template = Template("""SELECT ?x
+                    WHERE { ?x <$uri> "$obj_uri" \}""")
+                sparql_query = sparql_template.substitute(
+                    uri=uri,
+                    obj_uri=obj_uri)
+                search_request = urllib.request.Request(
+                    sparql_url,
+                    data=sparql_query.encode())
+                search_request.add_header(
+                    "Accept",
+                    "text/turtle")
+                search_request.add_header(
+                    "Content-Type",
+                    "application/sparql-query")
+                try:
+                    search_response = urllib.request.urlopen(search_request)
+                    if search_response.code < 400:
+                        return rdflib.Graph().parse(
+                            data=search_response.read(),
+                            format='turtle')
+                except urllib.error.HTTPError:
+                    print("Error with sparql query:\n{}".format(sparql_query))
+
     def init_app(self, app):
         """
         Initializes a Flask app object for the extension.
@@ -37,6 +103,7 @@ class Repository(object):
         Args:
             app(Flask): Flask app
         """
+        app.config.setdefault('FEDORA_BASE_URL', 'http://localhost:8080')
         if hasattr(app, 'teardown_appcontext'):
             app.teardown_appcontext(self.teardown)
         else:
@@ -120,13 +187,13 @@ class Repository(object):
         if existing_entity:
             return # Returns nothing
         if graph is not None:
-            create_response = self.__connect__(
+            create_response = self.connect(
                 uri,
                 data=graph.serialize(format='turtle'),
                 method='PUT')
         else:
             # Creates a stub Fedora object for the uri
-            create_response = self.__connect__(uri,
+            create_response = self.connect(uri,
                 method='PUT')
         return create_response.read()
 
@@ -135,9 +202,9 @@ class Repository(object):
         return True
 
     def exists(self, entity_id):
-        entity_uri = "/".join([self.base_url, entity_id])
+        ##entity_uri = "/".join([self.base_url, entity_id])
         try:
-            urllib.request.urlopen(entity_uri)
+            urllib.request.urlopen(entity_id)
             return True
         except urllib.error.HTTPError:
             return False
@@ -222,6 +289,10 @@ class Repository(object):
             format='turtle')
         return fedora_results
 
+    def teardown(self, exception):
+        ctx = stack.top
+
+
     def update(self,
                entity_id,
                property_name,
@@ -240,11 +311,10 @@ class Repository(object):
             entity_uri = urllib.parse.urljoin(fedora_base, entity_id)
         else:
             entity_uri = entity_id
-        if not entity_exists(entity_id):
-            create_entity(entity_id)
-        print(entity_uri)
+        if not self.exists(entity_id):
+            self.create(entity_id)
         ranges_set = set(schema_json['properties'][property_name]['ranges'])
-        if len(literal_set.intersection(ranges_set)) > 0:
+        if len(Repository.LITERAL_SET.intersection(ranges_set)) > 0:
             sparql_template = Template("""PREFIX schema: <http://schema.org/>
         INSERT DATA {
             <$entity> $prop_name "$prop_value"

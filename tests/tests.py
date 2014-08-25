@@ -26,10 +26,6 @@ sys.path.append(os.path.split(os.getcwd())[0])
 from flask import Flask, current_app
 from flask_fedora_commons import Repository
 
-BIBFRAME = rdflib.Namespace("http://bibframe.org/vocab/")
-FEDORA_BASE_URL = "http://localhost:8080"
-SCHEMA_ORG = rdflib.Namespace("http://schema.org/")
-
 
 class TestFedoraCommons(unittest.TestCase):
 
@@ -61,6 +57,9 @@ class TestFedoraCommons(unittest.TestCase):
 
     def test_repo_exists(self):
         self.assertTrue(self.repo is not None)
+
+    def test_dedup(self):
+        self.repo.__dedup__()
 
     def test_as_json(self):
         # JSON-LD without Context
