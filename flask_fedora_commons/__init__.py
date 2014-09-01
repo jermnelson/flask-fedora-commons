@@ -20,6 +20,7 @@ BIBFRAME = rdflib.Namespace("http://bibframe.org/vocab/")
 FEDORA_BASE_URL = "http://localhost:8080"
 MADS = rdflib.Namespace("http://www.loc.gov/standards/mads/")
 SCHEMA_ORG = rdflib.Namespace("http://schema.org/")
+SKOS = rdflib.Namespace('http://www.w3.org/2004/02/skos/core#')
 
 schema_json = json.loads(
     urllib.request.urlopen('http://schema.rdfs.org/all.json').read().decode())
@@ -46,6 +47,9 @@ class Repository(object):
         self.app = app
         if app is not None:
             self.init_app(app)
+            if 'FEDORA_BASE_URL' in app.config:
+                self.base_url = app.config.get('FEDORA_BASE_URL')
+
         self.base_url = base_url
 
     def __dedup__(self,
@@ -288,6 +292,37 @@ class Repository(object):
         fedora_results = rdflib.Graph().parse(data=search_response.read(),
             format='turtle')
         return fedora_results
+
+    def setup(self):
+        """Method registers common namespaces, loads various graphs with initial
+        mappings, and preps Fedora 4 for full use in the Catalog Pull Platform.
+        """
+        fedora_namespace_uri = "/".join([
+            self.base_url,
+            'rest',
+            'fcr:namespaces'])
+        sparql_template = Template("""INSERT {
+        <$uri> <http://purl.org/vocab/vann/preferredNamespacePrefix> "$ns"
+        } WHERE {
+
+        }""")
+        def process_namespace(uri, namespace):
+            sparql = sparql_template.substitute(uri=uri,
+                ns=namespace)
+            request = urllib.request.Request(
+                fedora_namespace_uri,
+                data=sparql.encode(),
+                headers={'Content-Type': 'application/sparql-update'})
+            response = urllib.request.urlopen(request)
+
+        # Register BIBFRAME, Schema.org, and MADS namespaces
+        process_namespace(str(BIBFRAME), 'bf')
+        process_namespace(str(MADS), 'mads')
+        process_namespace(str(SCHEMA_ORG), 'schema')
+
+
+
+
 
     def teardown(self, exception):
         ctx = stack.top
