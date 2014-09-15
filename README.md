@@ -1,4 +1,7 @@
 # Flask-FedoraCommons
+
+[![Build Status](https://travis-ci.org/jermnelson/flask-fedora-commons.svg)](https://travis-ci.org/jermnelson/flask-fedora-commons)
+
 Flask-FedoraCommons is an extension to [Flask][Flask] that provides an interface 
 to the open-source [Fedora Commons][FEDORA] 4.0 beta digital repository. This 
 extension is developed in [Python 3.4][PY3] with no plans to provide backward 
