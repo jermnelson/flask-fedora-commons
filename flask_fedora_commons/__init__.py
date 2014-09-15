@@ -18,10 +18,20 @@ except ImportError:
 
 BIBFRAME = rdflib.Namespace("http://bibframe.org/vocab/")
 FEDORA_BASE_URL = "http://localhost:8080"
+FEDORA_NS = rdflib.Namespace('http://fedora.info/definitions/v4/rest-api#')
+FEDORA_RELS_EXT = rdflib.Namespace(
+    'http://fedora.info/definitions/v4/rels-ext#')
 MADS = rdflib.Namespace("http://www.loc.gov/standards/mads/")
+MADS_RDF =  rdflib.Namespace("http://www.loc.gov/mads/rdf/v1#")
 SCHEMA_ORG = rdflib.Namespace("http://schema.org/")
 SKOS = rdflib.Namespace('http://www.w3.org/2004/02/skos/core#')
 
+CONTEXT = {
+    'bf': str(BIBFRAME),
+    'fedora': str(FEDORA_NS),
+    'fedorarelsext': str(FEDORA_RELS_EXT),
+    'mads': str(MADS),
+    'madsrdf': str(MADS_RDF)}
 schema_json = json.loads(
     urllib.request.urlopen('http://schema.rdfs.org/all.json').read().decode())
 
