@@ -239,6 +239,55 @@ class Repository(object):
             format='turtle')
         return fedora_graph
 
+    def remove(self,
+               ns_prefix,
+               ns_uri,
+               entity_id,
+               property_uri,
+               value):
+        """Method removes a triple for the given/subject.
+
+        Args:
+            ns_prefix(string): Prefix of namespace
+            ns_uri(string): URI of namespace
+            entity_id(string): Fedora Object ID, ideally URI of the subject
+            property_uri(string):
+            value(string):
+
+        Return:
+            boolean: True if triple was removed from the object
+        """
+        if not entity_id.startswith("http"):
+            entity_uri = urllib.parse.urljoin(fedora_base, entity_id)
+        else:
+            entity_uri = entity_id
+        if value.startswith("http"):
+            value_str = "<{}>".format(value)
+        else:
+            value_str = value
+        sparql_template = Template("""PREFIX $prefix: <$namespace>
+        DELETE {
+            <$entity> $prop_name $value_str
+        } WHERE {
+            <$entity> $prop_name $value_str
+        }""")
+        sparql = sparql_template.substitute(
+            prefix=ns_prefix,
+            namespace=ns_uri,
+            entity=entity_uri,
+            prop_name=property_uri,
+            value_str=value_str)
+        delete_property_request = urllib.request.Request(
+            entity_uri,
+            data=sparql.encode(),
+            method='PATCH',
+            headers={'Content-Type': 'application/sparql-update'})
+        response = urllib.request.urlopen(delete_property_request)
+        if response.code < 400:
+            return True
+        return False
+
+
     def replace(self,
                 entity_id,
                 property_name,

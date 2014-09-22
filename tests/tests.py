@@ -86,6 +86,21 @@ class TestFedoraCommons(unittest.TestCase):
         self.assertEqual(label.value,
                          "Work for Unit Test")
 
+    def test_remove(self):
+        self.repo.remove('bf',
+                         'http://bibframe.org/vocab/',
+                         self.work_uri,
+                         rdflib.RDF.type,
+                         BIBFRAME.Monograph)
+        work_rdf = self.repo.read(str(self.work_uri))
+        work_types = work_rdf.objects(
+            subject=self.work_uri,
+            predicate=rdflib.RDF.type)
+        self.assertNotIn(BIBFRAME.Monograph, work_types)
+
+
+
+
     def test_repo_setup(self):
         fedora_namespaces = rdflib.Graph().parse("/".join([
             FEDORA_BASE_URL,
