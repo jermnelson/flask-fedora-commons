@@ -12,7 +12,7 @@ git repository at <https://github.com/jermnelson/flask-fedora-commons.git> and
 then checking out the legacy branch.
 """
 __author__ = "Jeremy Nelson"
-__version_info__ = ('0', '0', '8')
+__version_info__ = ('0', '0', '9')
 __version__ = '.'.join(__version_info__)
 
 from setuptools import find_packages, setup

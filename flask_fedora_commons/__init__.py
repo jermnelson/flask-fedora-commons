@@ -55,12 +55,34 @@ class Repository(object):
                            localhost:8080.
         """
         self.app = app
+        self.base_url = None
         if app is not None:
             self.init_app(app)
             if 'FEDORA_BASE_URL' in app.config:
                 self.base_url = app.config.get('FEDORA_BASE_URL')
+        if self.base_url is None:
+            self.base_url = base_url
 
-        self.base_url = base_url
+    def __build_prefixes__(self, namespaces=[('bf', str(BIBFRAME)),
+                                             ('schema', str(SCHEMA_ORG))]):
+        """Internal method takes a list of prefix, namespace uri tuples and
+        generates a SPARQL PREFIX string.
+
+        Args:
+            namespaces(list): List of tuples, defaults to BIBFRAMe and
+                              Schema.org
+
+        Returns:
+            string
+        """
+        output = "PREFIX {}: <{}>\n".format(namespaces[0][0],
+            namespaces[0][1])
+        if len(namespaces) == 1:
+            return output
+        else:
+            for namespace in namespaces[1:]:
+                output += "       {}: <{}>\n".format(namespace[0], namespace[1])
+        return output
 
     def __dedup__(self,
                   subject,
@@ -109,6 +131,16 @@ class Repository(object):
                             format='turtle')
                 except urllib.error.HTTPError:
                     print("Error with sparql query:\n{}".format(sparql_query))
+
+    def __value_format__(self, value):
+        """Internal Method takes a value and constructs either an URI or
+        literal string in constructing an SPAQRL query.
+
+        """
+        if value.startswith("http"):
+            return "<{}>".format(value)
+        else:
+            return '"{}"'.format(value)
 
     def init_app(self, app):
         """
@@ -240,16 +272,15 @@ class Repository(object):
         return fedora_graph
 
     def remove(self,
-               ns_prefix,
-               ns_uri,
+               namespaces,
                entity_id,
                property_uri,
                value):
         """Method removes a triple for the given/subject.
 
         Args:
-            ns_prefix(string): Prefix of namespace
-            ns_uri(string): URI of namespace
+            namespaces(list): List of namespace tuples of prefix, uri for
+                              each namespace for sparql query
             entity_id(string): Fedora Object ID, ideally URI of the subject
             property_uri(string):
             value(string):
@@ -261,22 +292,17 @@ class Repository(object):
             entity_uri = urllib.parse.urljoin(fedora_base, entity_id)
         else:
             entity_uri = entity_id
-        if value.startswith("http"):
-            value_str = "<{}>".format(value)
-        else:
-            value_str = value
-        sparql_template = Template("""PREFIX $prefix: <$namespace>
+        sparql_template = Template("""$prefix
         DELETE {
             <$entity> $prop_name $value_str
         } WHERE {
             <$entity> $prop_name $value_str
         }""")
         sparql = sparql_template.substitute(
-            prefix=ns_prefix,
-            namespace=ns_uri,
+            prefix=self.__build_prefixes__(namespaces),
             entity=entity_uri,
             prop_name=property_uri,
-            value_str=value_str)
+            value_str=self.__value_format__(value))
         delete_property_request = urllib.request.Request(
             entity_uri,
             data=sparql.encode(),
@@ -289,6 +315,7 @@ class Repository(object):
 
 
     def replace(self,
+                namespaces,
                 entity_id,
                 property_name,
                 old_value,
@@ -296,35 +323,33 @@ class Repository(object):
         """Method replaces a triple for the given entity/subject. Property
         name is from the schema.org vocabulary.
 
+        Args:
+            namespaces(list): List of namespace tuples of prefix, uri for
+                              each namespace for sparql query
+            entity_id(string): Unique ID of Fedora object
+            property_name(string): Prefix and property name i.e. schema:name
+            old_value(string): Literal or URI of old value
+            value(string): Literal or new value
 
         """
         if not entity_id.startswith("http"):
             entity_uri = urllib.parse.urljoin(fedora_base, entity_id)
         else:
             entity_uri = entity_id
-        if len(literal_set.intersection(
-            ['properties'][property_name]['ranges'])) < 1 or\
-            not 'ranges' in ['properties'][property_name]:
-            sparql_template = Template("""PREFIX schema: <http://schema.org/>
+        sparql_template = Template("""$prefix
             DELETE {
-             <$entity> $prop_name <$old_value>
+             <$entity> $prop_name $old_value
             } INSERT {
-             <$entity> $prop_name <$new_value>
-            } WHERE {
-            }""")
-        else:
-            sparql_template = Template("""PREFIX schema: <http://schema.org/>
-            DELETE {
-             <$entity> $prop_name "$old_value"
-            } INSERT {
-             <$entity> $prop_name "$new_value"
+             <$entity> $prop_name $new_value
             } WHERE {
             }""")
         sparql = sparql_template.substitute(
+            prefix=self.__build_prefixes__(namespaces),
             entity=entity_uri,
-            prop_name="schema:{}".format(property_name),
-            old_value=old_value,
-            new_value=value)
+            prop_name=property_name,
+            old_value=self.__value_format__(old_value),
+            new_value=self.__value_format__(value))
+        print("In replace {}".format(sparql))
         update_request = urllib.request.Request(
             entity_uri,
             data=sparql.encode(),
@@ -388,15 +413,18 @@ class Repository(object):
 
 
     def update(self,
+               namespaces,
                entity_id,
-               property_name,
+               property_uri,
                value):
         """Method updates the Entity's property in Fedora4 Repository
 
         Args:
+            namespaces(list): List of namespace tuples of prefix, uri for
+                              each namespace for sparql query
             entity_id(string): Unique ID of Fedora object
-            property_name(string): Name of schema.org property
-            value: Value of the schema.org property
+            property_uri(string): URI of property
+            value: Value of the property, can be literal or URI reference
 
         Returns:
             boolean: True if successful changed in Fedora, False otherwise
@@ -407,21 +435,15 @@ class Repository(object):
             entity_uri = entity_id
         if not self.exists(entity_id):
             self.create(entity_id)
-        ranges_set = set(schema_json['properties'][property_name]['ranges'])
-        if len(Repository.LITERAL_SET.intersection(ranges_set)) > 0:
-            sparql_template = Template("""PREFIX schema: <http://schema.org/>
+        sparql_template = Template("""$prefix
         INSERT DATA {
-            <$entity> $prop_name "$prop_value"
-        }""")
-        else:
-            sparql_template = Template("""PREFIX schema: <http://schema.org/>
-        INSERT DATA {
-            <$entity> $prop_name <$prop_value>
+             <$entity> $prop_uri $value_str;
         }""")
         sparql = sparql_template.substitute(
+            prefix=self.__build_prefixes__(namespaces),
             entity=entity_uri,
-            prop_name="schema:{}".format(property_name),
-            prop_value=value)
+            prop_uri=property_uri,
+            value_str=self.__value_format__(value))
         update_request = urllib.request.Request(
             entity_uri,
             data=sparql.encode(),

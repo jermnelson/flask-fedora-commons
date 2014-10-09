@@ -47,6 +47,9 @@ class TestFedoraCommons(unittest.TestCase):
         self.work_rdf.add((self.work_uri,
                            rdflib.RDF.type,
                            SCHEMA_ORG.Book))
+        self.work_rdf.add((self.work_uri,
+                           BIBFRAME.workTitle,
+                           rdflib.Literal("Original Work Title")))
         # Add RDF Graph to Fedora
         new_request = urllib.request.Request(
             str(self.work_uri),
@@ -59,9 +62,31 @@ class TestFedoraCommons(unittest.TestCase):
     def test_repo_exists(self):
         self.assertTrue(self.repo is not None)
 
+    def test__build_prefixes__(self):
+        prefix_tst = "PREFIX bf: <http://bibframe.org/vocab/>\n"
+        prefix_tst += "       schema: <http://schema.org/>\n"
+        self.assertEqual(prefix_tst,
+               self.repo.__build_prefixes__())
+        self.assertEqual("PREFIX bf: <http://bibframe.org/vocab/>\n",
+            self.repo.__build_prefixes__([[
+                'bf',
+                'http://bibframe.org/vocab/']]))
+
+
+    def test__value_format__(self):
+        self.assertEqual("<http://bibframe.org/vocab/Work>",
+            self.repo.__value_format__('http://bibframe.org/vocab/Work'))
+        self.assertEqual('"A most excellent work"',
+            self.repo.__value_format__('A most excellent work'))
+
+
     def test_dedup(self):
 ##        self.repo.__dedup__()
         pass
+
+    def test_delete(self):
+        self.repo.delete(self.work_uri)
+        self.assertFalse(self.repo.exists(self.work_uri))
 
     def test_as_json(self):
         # JSON-LD without Context
@@ -78,6 +103,9 @@ class TestFedoraCommons(unittest.TestCase):
             "@language": "en"}))
         self.assertEqual(work_json['@id'], str(self.work_uri))
 
+    def test_exists(self):
+        self.assertTrue(self.repo.exists(self.work_uri))
+        self.assertFalse(self.repo.exists('http://example.org/Work/1'))
 
     def test_read(self):
         work_rdf = self.repo.read(str(self.work_uri))
@@ -87,18 +115,30 @@ class TestFedoraCommons(unittest.TestCase):
                          "Work for Unit Test")
 
     def test_remove(self):
-        self.repo.remove('bf',
-                         'http://bibframe.org/vocab/',
+        self.repo.remove([('rdf', str(rdflib.RDF))],
                          self.work_uri,
-                         rdflib.RDF.type,
+                         'rdf:type',
                          BIBFRAME.Monograph)
         work_rdf = self.repo.read(str(self.work_uri))
-        work_types = work_rdf.objects(
-            subject=self.work_uri,
-            predicate=rdflib.RDF.type)
+        work_types = [obj for obj in work_rdf.objects(
+                subject=self.work_uri,
+                predicate=rdflib.RDF.type)]
         self.assertNotIn(BIBFRAME.Monograph, work_types)
 
 
+    def test_replace(self):
+        self.repo.replace(
+            [['bf', str(BIBFRAME)]],
+            self.work_uri,
+            'bf:workTitle',
+            "Original Work Title",
+            "A new title")
+        work_rdf = self.repo.read(str(self.work_uri))
+        self.assertEqual(
+            "A new title",
+            str(work_rdf.value(
+                    subject=self.work_uri,
+                    predicate=BIBFRAME.workTitle)))
 
 
     def test_repo_setup(self):
@@ -112,6 +152,46 @@ class TestFedoraCommons(unittest.TestCase):
                 subject=rdflib.term.URIRef(str(BIBFRAME)),
                 predicate=prefNS_URI)),
             str(BIBFRAME))
+
+    def test_search(self):
+        work_results = self.repo.search("Unit Test")
+        self.assertEqual(
+            1,
+            int(work_results.value(
+                subject=rdflib.URIRef('http://localhost:8080/rest/fcr:search?q=Unit+Test'),
+                predicate=rdflib.URIRef('http://sindice.com/vocab/search#totalResults'))))
+        no_results = self.repo.search("4546WW")
+        self.assertEqual(
+            0,
+            int(no_results.value(
+                subject=rdflib.URIRef('http://localhost:8080/rest/fcr:search?q=4546WW'),
+                predicate=rdflib.URIRef('http://sindice.com/vocab/search#totalResults'))))
+
+
+    def test_update(self):
+        self.repo.update([['schema', 'http://schema.org/']],
+                         self.work_uri,
+                         "schema:about",
+                         "This is a test work")
+        work_rdf = self.repo.read(str(self.work_uri))
+        self.assertEqual(
+            "This is a test work",
+            str(work_rdf.value(subject=self.work_uri,
+                predicate=SCHEMA_ORG.about)))
+        self.repo.update(
+            [('bf', str(BIBFRAME))],
+            self.work_uri,
+            "bf:sameAs",
+            "http://example.org/Work/12334")
+        work_rdf = self.repo.read(str(self.work_uri))
+        self.assertEqual(
+            rdflib.URIRef("http://example.org/Work/12334"),
+            work_rdf.value(
+                subject=self.work_uri,
+                predicate=BIBFRAME.sameAs))
+
+
+
 
 
     def tearDown(self):
