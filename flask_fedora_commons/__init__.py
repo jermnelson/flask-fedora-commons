@@ -1,4 +1,11 @@
-__version_info__ = ('0', '0', '8')
+"""
+ FlaskFedoraCommons is a Flask extension for the Fedora Commons Digital
+ Repository software
+
+>> from flask_fedora_commons import Repository
+>> repo = Repository()
+"""
+__version_info__ = ('0', '0', '9')
 __version__ = '.'.join(__version_info__)
 __author__ = "Jeremy Nelson"
 __license__ = 'MIT License'
@@ -22,18 +29,66 @@ FEDORA_NS = rdflib.Namespace('http://fedora.info/definitions/v4/rest-api#')
 FEDORA_RELS_EXT = rdflib.Namespace(
     'http://fedora.info/definitions/v4/rels-ext#')
 MADS = rdflib.Namespace("http://www.loc.gov/standards/mads/")
-MADS_RDF =  rdflib.Namespace("http://www.loc.gov/mads/rdf/v1#")
+MADS_RDF = rdflib.Namespace("http://www.loc.gov/mads/rdf/v1#")
 SCHEMA_ORG = rdflib.Namespace("http://schema.org/")
 SKOS = rdflib.Namespace('http://www.w3.org/2004/02/skos/core#')
 
-CONTEXT = {
-    'bf': str(BIBFRAME),
-    'fedora': str(FEDORA_NS),
-    'fedorarelsext': str(FEDORA_RELS_EXT),
-    'mads': str(MADS),
-    'madsrdf': str(MADS_RDF)}
-schema_json = json.loads(
-    urllib.request.urlopen('http://schema.rdfs.org/all.json').read().decode())
+DEFAULT_NAMESPACES = [
+    ('bf', str(BIBFRAME)),
+    ('fedora', str(FEDORA_NS)),
+    ('fedorarelsext', str(FEDORA_RELS_EXT)),
+    ('mads', str(MADS)),
+    ('madsrdf', str(MADS_RDF)),
+    ('rdf', str(rdflib.RDF)),
+    ('rdfs', str(rdflib.RDFS)),
+    ('schema', str(SCHEMA_ORG))]
+
+CONTEXT = {}
+for row in DEFAULT_NAMESPACES:
+    CONTEXT[row[0]] = row[1]
+
+def build_prefixes(namespaces=None):
+    """Internal function takes a list of prefix, namespace uri tuples and
+    generates a SPARQL PREFIX string.
+
+    Args:
+        namespaces(list): List of tuples, defaults to BIBFRAME and
+                          Schema.org
+
+    Returns:
+        string
+    """
+    if namespaces is None:
+        namespaces = [
+            ('bf', str(BIBFRAME)),
+            ('schema', str(SCHEMA_ORG))
+        ]
+    output = "PREFIX {}: <{}>\n".format(
+        namespaces[0][0],
+        namespaces[0][1])
+    if len(namespaces) == 1:
+        return output
+    else:
+        for namespace in namespaces[1:]:
+            output += "PREFIX  {}: <{}>\n".format(namespace[0], namespace[1])
+    return output
+
+def copy_graph(subject, existing_graph):
+    """Function takes a subject and an existing graph, returns a new graph with
+    all predicate and objects of the existing graph copied to the new_graph with
+    subject as the new subject
+
+    Args:
+        subject(rdflib.URIRef): A URIRef subject
+        existing_graph(rdflib.Graph): A rdflib.Graph
+
+    Returns:
+        rdflib.Graph
+    """
+    new_graph = rdflib.Graph()
+    for predicate, object_ in existing_graph.predicate_objects():
+        new_graph.add((subject, predicate, object_))
+    return new_graph
 
 class Repository(object):
     """Class provides an interface to a Fedora Commons digital
@@ -45,7 +100,11 @@ class Repository(object):
         MADS.authoritativeLabel]
     LITERAL_SET = set(["Text", "Number", "Date", "Duration"])
 
-    def __init__(self, app=None, base_url='http://localhost:8080'):
+    def __init__(
+        self,
+        app=None,
+        base_url='http://localhost:8080',
+        namespaces=DEFAULT_NAMESPACES):
         """
         Initializes a Repository object
 
@@ -53,8 +112,11 @@ class Repository(object):
             app(Flask): Flask app, default is None
             base_url(str): Base url for Fedora Commons, defaults to
                            localhost:8080.
+            namespaces(list): List of namespace tuples of prefix, uri for
+                              each namespace in Fedora
         """
         self.app = app
+        self.namespaces = namespaces
         self.base_url = None
         if app is not None:
             self.init_app(app)
@@ -62,27 +124,21 @@ class Repository(object):
                 self.base_url = app.config.get('FEDORA_BASE_URL')
         if self.base_url is None:
             self.base_url = base_url
+        self.transaction = []
 
-    def __build_prefixes__(self, namespaces=[('bf', str(BIBFRAME)),
-                                             ('schema', str(SCHEMA_ORG))]):
-        """Internal method takes a list of prefix, namespace uri tuples and
-        generates a SPARQL PREFIX string.
+
+    def __build_url__(self, url):
+        """Internal method takes a URL or URL fragment and builds a Fedora
+        URI for the object based on URL, if a transaction exists, and
+        returns the correct URL
 
         Args:
-            namespaces(list): List of tuples, defaults to BIBFRAMe and
-                              Schema.org
+            url(str): String URL or URL fragment
 
         Returns:
-            string
+            url(str): Full dereferenced URL to the Fedora object
         """
-        output = "PREFIX {}: <{}>\n".format(namespaces[0][0],
-            namespaces[0][1])
-        if len(namespaces) == 1:
-            return output
-        else:
-            for namespace in namespaces[1:]:
-                output += "       {}: <{}>\n".format(namespace[0], namespace[1])
-        return output
+        return url
 
     def __dedup__(self,
                   subject,
@@ -103,14 +159,12 @@ class Repository(object):
             return
         for uri in Repository.DEFAULT_ID_URIS:
             # Checks for duplicates
-            for obj_uri in graph.objects(
-                subject=subject,
-                predicate=uri):
+            for obj_uri in graph.objects(subject=subject, predicate=uri):
                 sparql_url = urllib.parse.urljoin(
                     self.base_url,
                     "rest/fcr:sparql")
                 sparql_template = Template("""SELECT ?x
-                    WHERE { ?x <$uri> "$obj_uri" \}""")
+                    WHERE { ?x <$uri> "$obj_uri" }""")
                 sparql_query = sparql_template.substitute(
                     uri=uri,
                     obj_uri=obj_uri)
@@ -155,11 +209,18 @@ class Repository(object):
         else:
             app.teardown_request(self.teardown)
 
+    def create_transaction(self):
+        """Method creates a new transaction resource and sets instance's
+        transaction."""
+        request = urlllib.request.urlopen(
+            urllib.parse.urljoin(self.base_url, 'fcr:tx'))
+        self.transaction = request.read()
+
 
     def connect(self,
                 fedora_url,
-                data={},
-                method='GET'):
+                data=None,
+                method='Get'):
         """Method attempts to connect to REST servers of the Fedora
         Commons repository using optional data parameter.
 
@@ -172,6 +233,10 @@ class Repository(object):
             result(string): Response string from Fedora
 
         """
+        if data is None:
+            data = {}
+        if not fedora_url.startswith("http"):
+            fedora_url = urllib.parse.urljoin(self.base_url, fedora_url)
         request = urllib.request.Request(fedora_url,
                                          method=method)
         request.add_header('Accept', 'text/turtle')
@@ -180,16 +245,16 @@ class Repository(object):
             request.data = data
         try:
             response = urllib.request.urlopen(request)
-        except URLError as e:
-            if hasattr(e, 'reason'):
+        except urllib.error.URLError as err:
+            if hasattr(err, 'reason'):
                 print("failed to reach server at {} with {} method".format(
                     fedora_url,
                     request.method))
-                print("Reason: ", e.reason)
+                print("Reason: ", err.reason)
                 print("Data: ", data)
-            elif hasattr(e, 'code'):
-                print("Server error {}".format(e.code))
-            raise e
+            elif hasattr(err, 'code'):
+                print("Server error {}".format(err.code))
+            raise err
         return response
 
     def as_json(self,
@@ -208,7 +273,7 @@ class Repository(object):
         try:
             urllib.request.urlopen(entity_url)
         except urllib.error.HTTPError:
-            abort(404)
+            raise ValueError("Cannot open {}".format(entity_url))
         entity_graph = self.read(entity_url)
         entity_json = json.loads(
             entity_graph.serialize(
@@ -217,40 +282,65 @@ class Repository(object):
         return json.dumps(entity_json)
 
         # Provides standard CRUD operations on a Fedora Object
-    def create(self, uri, graph=None):
-        """Method takes a URL and a graph, first checking if the URL is already
+    def create(self, uri=None, graph=None):
+        """Method takes an optional URI and graph, first checking if the URL is already
         present in Fedora, if not, creates a Fedora Object with the graph as
-        properties
+        properties. If URI is None, uses Fedora 4 default PID minter to create
+        the object's URI.
 
         Args:
-            uri(string): String of URI
-            graph(rdflib.Graph): RDF Graph of subject
+            uri(string): String of URI, default is None
+            graph(rdflib.Graph): RDF Graph of subject, default is None
 
         Returns:
             URI(string): New Fedora URI or None if uri already exists
         """
-        existing_entity = self.__dedup__(rdflib.URIRef(uri), graph)
-        if existing_entity:
-            return # Returns nothing
+        if uri is not None:
+            existing_entity = self.__dedup__(rdflib.URIRef(uri), graph)
+            if existing_entity is not None:
+                return # Returns nothing
+        else:
+            default_request = urllib.request.Request(
+                "/".join([self.base_url, "rest"]),
+                method='POST')
+            uri = urllib.request.urlopen(default_request).read().decode()
         if graph is not None:
+            new_graph = copy_graph(rdflib.URIRef(uri), graph)
             create_response = self.connect(
                 uri,
-                data=graph.serialize(format='turtle'),
+                data=new_graph.serialize(format='turtle'),
                 method='PUT')
-        else:
-            # Creates a stub Fedora object for the uri
-            create_response = self.connect(uri,
-                method='PUT')
-        return create_response.read()
+            raw_response = create_response.read()
+        return uri
+
 
     def delete(self, uri):
-        delete_response = self.connect(uri, method='DELETE')
-        return True
+        """Method deletes a Fedora Object in the repository
 
-    def exists(self, entity_id):
+        Args:
+            uri(str): URI of Fedora Object
+        """
+        try:
+            self.connect(uri, method='DELETE')
+            return True
+        except urllib.error.HTTPError:
+            return False
+
+
+
+    def exists(self, uri):
+        """Method returns true is the entity exists in the Repository,
+        false, otherwise
+
+        Args:
+            uri(str): Entity URI
+
+        Returns:
+            bool
+        """
         ##entity_uri = "/".join([self.base_url, entity_id])
         try:
-            urllib.request.urlopen(entity_id)
+            urllib.request.urlopen(uri)
             return True
         except urllib.error.HTTPError:
             return False
@@ -260,11 +350,58 @@ class Repository(object):
         base_graph = rdflib.Graph().parse('{}/rest'.format(self.base_url))
         has_child = rdflib.URIRef(
             'http://fedora.info/definitions/v4/repository#hasChild')
-        for obj in base_graph.objects(
-            predicate=has_child):
-                self.delete(str(obj))
+        for obj in base_graph.objects(predicate=has_child):
+            self.delete(str(obj))\
+
+    def insert(self,
+               entity_id,
+               property_uri,
+               value):
+        """Method inserts a new entity's property in Fedora4 Repository
+
+        Args:
+            entity_id(string): Unique ID of Fedora object
+            property_uri(string): URI of property
+            value: Value of the property, can be literal or URI reference
+
+        Returns:
+            boolean: True if successful changed in Fedora, False otherwise
+        """
+        if not entity_id.startswith("http"):
+            entity_uri = urllib.parse.urljoin(self.base_url, entity_id)
+        else:
+            entity_uri = entity_id
+        if not self.exists(entity_id):
+            self.create(entity_id)
+        sparql_template = Template("""$prefix
+        INSERT DATA {
+             <$entity> $prop_uri $value_str;
+        }""")
+        sparql = sparql_template.substitute(
+            prefix=build_prefixes(self.namespaces),
+            entity=entity_uri,
+            prop_uri=property_uri,
+            value_str=self.__value_format__(value))
+        update_request = urllib.request.Request(
+            entity_uri,
+            data=sparql.encode(),
+            method='PATCH',
+            headers={'Content-Type': 'application/sparql-update'})
+        response = urllib.request.urlopen(update_request)
+        if response.code < 400:
+            return True
+        return False
+
 
     def read(self, uri):
+        """Method takes uri and creates a RDF graph from Fedora Repository
+
+        Args:
+            uri(str): URI of Fedora URI
+
+        Returns:
+            rdflib.Graph
+        """
         read_response = self.connect(uri)
         fedora_graph = rdflib.Graph().parse(
             data=read_response.read(),
@@ -272,15 +409,12 @@ class Repository(object):
         return fedora_graph
 
     def remove(self,
-               namespaces,
                entity_id,
                property_uri,
                value):
         """Method removes a triple for the given/subject.
 
         Args:
-            namespaces(list): List of namespace tuples of prefix, uri for
-                              each namespace for sparql query
             entity_id(string): Fedora Object ID, ideally URI of the subject
             property_uri(string):
             value(string):
@@ -289,7 +423,7 @@ class Repository(object):
             boolean: True if triple was removed from the object
         """
         if not entity_id.startswith("http"):
-            entity_uri = urllib.parse.urljoin(fedora_base, entity_id)
+            entity_uri = urllib.parse.urljoin(self.base_url, entity_id)
         else:
             entity_uri = entity_id
         sparql_template = Template("""$prefix
@@ -299,7 +433,7 @@ class Repository(object):
             <$entity> $prop_name $value_str
         }""")
         sparql = sparql_template.substitute(
-            prefix=self.__build_prefixes__(namespaces),
+            prefix=build_prefixes(self.namespaces),
             entity=entity_uri,
             prop_name=property_uri,
             value_str=self.__value_format__(value))
@@ -315,7 +449,6 @@ class Repository(object):
 
 
     def replace(self,
-                namespaces,
                 entity_id,
                 property_name,
                 old_value,
@@ -324,16 +457,13 @@ class Repository(object):
         name is from the schema.org vocabulary.
 
         Args:
-            namespaces(list): List of namespace tuples of prefix, uri for
-                              each namespace for sparql query
             entity_id(string): Unique ID of Fedora object
             property_name(string): Prefix and property name i.e. schema:name
             old_value(string): Literal or URI of old value
             value(string): Literal or new value
-
         """
         if not entity_id.startswith("http"):
-            entity_uri = urllib.parse.urljoin(fedora_base, entity_id)
+            entity_uri = '/'.join([self.base_url, self.transaction, entity_id])
         else:
             entity_uri = entity_id
         sparql_template = Template("""$prefix
@@ -344,12 +474,11 @@ class Repository(object):
             } WHERE {
             }""")
         sparql = sparql_template.substitute(
-            prefix=self.__build_prefixes__(namespaces),
+            prefix=build_prefixes(self.namespaces),
             entity=entity_uri,
             prop_name=property_name,
             old_value=self.__value_format__(old_value),
             new_value=self.__value_format__(value))
-        print("In replace {}".format(sparql))
         update_request = urllib.request.Request(
             entity_uri,
             data=sparql.encode(),
@@ -361,6 +490,15 @@ class Repository(object):
         return False
 
     def search(self, query_term):
+        """Method takes a query term and searches Fedora Repository using SPARQL
+        search endpoint and returns a RDF graph of the search results.
+
+        Args:
+            query_term(str): String to search repository
+
+        Returns:
+            rdflib.Graph()
+        """
         fedora_search_url = "/".join([self.base_url, 'rest', 'fcr:search'])
         fedora_search_url = "{}?{}".format(
             fedora_search_url,
@@ -371,9 +509,10 @@ class Repository(object):
         search_request.add_header('Accept', 'text/turtle')
         try:
             search_response = urllib.request.urlopen(search_request)
-        except URLError as e:
-            raise e
-        fedora_results = rdflib.Graph().parse(data=search_response.read(),
+        except urllib.error.URLError as error:
+            raise error
+        fedora_results = rdflib.Graph().parse(
+            data=search_response.read(),
             format='turtle')
         return fedora_results
 
@@ -391,13 +530,21 @@ class Repository(object):
 
         }""")
         def process_namespace(uri, namespace):
-            sparql = sparql_template.substitute(uri=uri,
+            """Internal function takes a uri and a namespace and attempts to
+            add the namespace and prefix to Fedora
+
+            Args:
+                uri(str): URI of namespace
+                namespace(str): Prefix of namespace
+            """
+            sparql = sparql_template.substitute(
+                uri=uri,
                 ns=namespace)
             request = urllib.request.Request(
                 fedora_namespace_uri,
                 data=sparql.encode(),
                 headers={'Content-Type': 'application/sparql-update'})
-            response = urllib.request.urlopen(request)
+            urllib.request.urlopen(request)
 
         # Register BIBFRAME, Schema.org, and MADS namespaces
         process_namespace(str(BIBFRAME), 'bf')
@@ -409,47 +556,13 @@ class Repository(object):
 
 
     def teardown(self, exception):
-        ctx = stack.top
-
-
-    def update(self,
-               namespaces,
-               entity_id,
-               property_uri,
-               value):
-        """Method updates the Entity's property in Fedora4 Repository
+        """Supporting method for Flask applications
 
         Args:
-            namespaces(list): List of namespace tuples of prefix, uri for
-                              each namespace for sparql query
-            entity_id(string): Unique ID of Fedora object
-            property_uri(string): URI of property
-            value: Value of the property, can be literal or URI reference
-
-        Returns:
-            boolean: True if successful changed in Fedora, False otherwise
+            exception: Exception
         """
-        if not entity_id.startswith("http"):
-            entity_uri = urllib.parse.urljoin(fedora_base, entity_id)
-        else:
-            entity_uri = entity_id
-        if not self.exists(entity_id):
-            self.create(entity_id)
-        sparql_template = Template("""$prefix
-        INSERT DATA {
-             <$entity> $prop_uri $value_str;
-        }""")
-        sparql = sparql_template.substitute(
-            prefix=self.__build_prefixes__(namespaces),
-            entity=entity_uri,
-            prop_uri=property_uri,
-            value_str=self.__value_format__(value))
-        update_request = urllib.request.Request(
-            entity_uri,
-            data=sparql.encode(),
-            method='PATCH',
-            headers={'Content-Type': 'application/sparql-update'})
-        response = urllib.request.urlopen(update_request)
-        if response.code < 400:
-            return True
-        return False
+        if self.app is not None:
+            ctx = stack.top
+
+
+
