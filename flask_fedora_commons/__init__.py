@@ -28,6 +28,7 @@ FEDORA_BASE_URL = "http://localhost:8080"
 FEDORA_NS = rdflib.Namespace('http://fedora.info/definitions/v4/rest-api#')
 FEDORA_RELS_EXT = rdflib.Namespace(
     'http://fedora.info/definitions/v4/rels-ext#')
+FCREPO = rdflib.Namespace("http://fedora.info/definitions/v4/repository#")
 MADS = rdflib.Namespace("http://www.loc.gov/standards/mads/")
 MADS_RDF = rdflib.Namespace("http://www.loc.gov/mads/rdf/v1#")
 SCHEMA_ORG = rdflib.Namespace("http://schema.org/")
@@ -37,6 +38,7 @@ DEFAULT_NAMESPACES = [
     ('bf', str(BIBFRAME)),
     ('fedora', str(FEDORA_NS)),
     ('fedorarelsext', str(FEDORA_RELS_EXT)),
+    ('fcrepo', str(FCREPO)),
     ('mads', str(MADS)),
     ('madsrdf', str(MADS_RDF)),
     ('rdf', str(rdflib.RDF)),
@@ -117,7 +119,6 @@ class Repository(object):
         """
         self.app = app
         self.namespaces = namespaces
-        self.base_url = None
         if app is not None:
             self.init_app(app)
             if 'FEDORA_BASE_URL' in app.config:
