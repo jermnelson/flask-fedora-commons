@@ -119,6 +119,7 @@ class Repository(object):
         """
         self.app = app
         self.namespaces = namespaces
+        self.base_url = None
         if app is not None:
             self.init_app(app)
             if 'FEDORA_BASE_URL' in app.config:
