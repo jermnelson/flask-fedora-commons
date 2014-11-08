@@ -41,6 +41,7 @@ DEFAULT_NAMESPACES = [
     ('fcrepo', str(FCREPO)),
     ('mads', str(MADS)),
     ('madsrdf', str(MADS_RDF)),
+    ('owl', str(rdflib.OWL)),
     ('rdf', str(rdflib.RDF)),
     ('rdfs', str(rdflib.RDFS)),
     ('schema', str(SCHEMA_ORG))]
@@ -284,7 +285,7 @@ class Repository(object):
         return json.dumps(entity_json)
 
         # Provides standard CRUD operations on a Fedora Object
-    def create(self, uri=None, graph=None):
+    def create(self, uri=None, graph=None, data=None):
         """Method takes an optional URI and graph, first checking if the URL is already
         present in Fedora, if not, creates a Fedora Object with the graph as
         properties. If URI is None, uses Fedora 4 default PID minter to create
@@ -293,6 +294,7 @@ class Repository(object):
         Args:
             uri(string): String of URI, default is None
             graph(rdflib.Graph): RDF Graph of subject, default is None
+            data(object): Binary datastream that will be saved as fcr:content
 
         Returns:
             URI(string): New Fedora URI or None if uri already exists
@@ -552,6 +554,7 @@ class Repository(object):
         process_namespace(str(BIBFRAME), 'bf')
         process_namespace(str(MADS), 'mads')
         process_namespace(str(SCHEMA_ORG), 'schema')
+        process_namespace(str(rdflib.OWL), 'owl')
 
 
 
