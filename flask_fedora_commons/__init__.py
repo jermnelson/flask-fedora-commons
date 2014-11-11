@@ -557,6 +557,28 @@ class Repository(object):
         process_namespace(str(rdflib.OWL), 'owl')
 
 
+    def sparql(self, statement, accept_format='text/csv'):
+        """Method takes and executes a generic SPARQL statement and returns
+        the result. NOTE: The Fedora 4 supports a limited subset of SPARQL,
+        see <https://wiki.duraspace.org/display/FF/RESTful+HTTP+API+-+Search#RESTfulHTTPAPI-Search-SPARQLEndpoint>
+        for more information.
+
+        Args:
+            statement(string): SPARQL statement
+            accept_format(string): Format for output, defaults to text/csv
+
+        Returns:
+            result(string): Raw decoded string of the result from executing the
+            SPARQL statement
+        """
+        request = urllib.request.Request(
+            '/'.join([self.base_url, 'rest', 'fcr:sparql']),
+            data=statement.encode(),
+            headers={"Context-Type": "application/sparql-query",
+                     "Accept": accept_format})
+        result = urllib.request.urlopen(request)
+        return result.read().decode()
+
 
 
 
