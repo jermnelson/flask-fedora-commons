@@ -375,6 +375,10 @@ class Repository(object):
             entity_uri = urllib.parse.urljoin(self.base_url, entity_id)
         else:
             entity_uri = entity_id
+        if entity_uri.endswith("/"):
+            entity_uri = entity_uri[:-1]
+        if not entity_id.endswith("fcr:metadata"):
+            entity_uri = "/".join([entity_uri, "fcr:metadata"])
         if not self.exists(entity_id):
             self.create(entity_id)
         sparql_template = Template("""$prefix
@@ -384,8 +388,9 @@ class Repository(object):
         sparql = sparql_template.substitute(
             prefix=build_prefixes(self.namespaces),
             entity=entity_uri,
-            prop_uri=property_uri,
+            prop_uri=self.__value_format__(property_uri),
             value_str=self.__value_format__(value))
+        print(sparql)
         update_request = urllib.request.Request(
             entity_uri,
             data=sparql.encode(),
