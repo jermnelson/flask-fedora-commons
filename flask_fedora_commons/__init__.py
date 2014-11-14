@@ -577,7 +577,7 @@ class Repository(object):
             SPARQL statement
         """
         request = urllib.request.Request(
-            '/'.join([self.base_url, 'rest', 'fcr:sparql']),
+            '/'.join([self.base_url, 'rest']),
             data=statement.encode(),
             headers={"Context-Type": "application/sparql-query",
                      "Accept": accept_format})
