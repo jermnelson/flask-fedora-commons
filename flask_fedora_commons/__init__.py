@@ -29,6 +29,7 @@ FEDORA_NS = rdflib.Namespace('http://fedora.info/definitions/v4/rest-api#')
 FEDORA_RELS_EXT = rdflib.Namespace(
     'http://fedora.info/definitions/v4/rels-ext#')
 FCREPO = rdflib.Namespace("http://fedora.info/definitions/v4/repository#")
+IDLOC_RT = rdflib.Namespace("http://id.loc.gov/vocabulary/relators/")
 MADS = rdflib.Namespace("http://www.loc.gov/standards/mads/")
 MADS_RDF = rdflib.Namespace("http://www.loc.gov/mads/rdf/v1#")
 SCHEMA_ORG = rdflib.Namespace("http://schema.org/")
@@ -39,6 +40,7 @@ DEFAULT_NAMESPACES = [
     ('fedora', str(FEDORA_NS)),
     ('fedorarelsext', str(FEDORA_RELS_EXT)),
     ('fcrepo', str(FCREPO)),
+    ('idloc_rt', str(IDLOC_RT)),
     ('mads', str(MADS)),
     ('madsrdf', str(MADS_RDF)),
     ('owl', str(rdflib.OWL)),
@@ -97,11 +99,6 @@ class Repository(object):
     """Class provides an interface to a Fedora Commons digital
      repository.
      """
-    DEFAULT_ID_URIS = [
-        BIBFRAME.authorizedAccessPoint,
-        rdflib.RDFS.label,
-        MADS.authoritativeLabel]
-    LITERAL_SET = set(["Text", "Number", "Date", "Duration"])
 
     def __init__(
         self,
@@ -127,6 +124,9 @@ class Repository(object):
                 self.base_url = app.config.get('FEDORA_BASE_URL')
         if self.base_url is None:
             self.base_url = base_url
+        # Removes trailing forward-slash
+        if self.base_url.endswith("/"):
+            self.base_url = self.base_url[:-1]
         self.transaction = []
 
 
@@ -388,9 +388,8 @@ class Repository(object):
         sparql = sparql_template.substitute(
             prefix=build_prefixes(self.namespaces),
             entity=entity_uri,
-            prop_uri=self.__value_format__(property_uri),
+            prop_uri=property_uri,
             value_str=self.__value_format__(value))
-        print(sparql)
         update_request = urllib.request.Request(
             entity_uri,
             data=sparql.encode(),
@@ -499,7 +498,8 @@ class Repository(object):
         return False
 
     def search(self, query_term):
-        """Method takes a query term and searches Fedora Repository using SPARQL
+        """DEPRECIATED
+        Method takes a query term and searches Fedora Repository using SPARQL
         search endpoint and returns a RDF graph of the search results.
 
         Args:
@@ -525,51 +525,17 @@ class Repository(object):
             format='turtle')
         return fedora_results
 
-    def setup(self):
-        """Method registers common namespaces, loads various graphs with initial
-        mappings, and preps Fedora 4 for full use in the Catalog Pull Platform.
-        """
-        fedora_namespace_uri = "/".join([
-            self.base_url,
-            'rest',
-            'fcr:namespaces'])
-        sparql_template = Template("""INSERT {
-        <$uri> <http://purl.org/vocab/vann/preferredNamespacePrefix> "$ns"
-        } WHERE {
 
-        }""")
-        def process_namespace(uri, namespace):
-            """Internal function takes a uri and a namespace and attempts to
-            add the namespace and prefix to Fedora
-
-            Args:
-                uri(str): URI of namespace
-                namespace(str): Prefix of namespace
-            """
-            sparql = sparql_template.substitute(
-                uri=uri,
-                ns=namespace)
-            request = urllib.request.Request(
-                fedora_namespace_uri,
-                data=sparql.encode(),
-                headers={'Content-Type': 'application/sparql-update'})
-            urllib.request.urlopen(request)
-
-        # Register BIBFRAME, Schema.org, and MADS namespaces
-        process_namespace(str(BIBFRAME), 'bf')
-        process_namespace(str(MADS), 'mads')
-        process_namespace(str(SCHEMA_ORG), 'schema')
-        process_namespace(str(rdflib.OWL), 'owl')
-
-
-    def sparql(self, statement, accept_format='text/csv'):
-        """Method takes and executes a generic SPARQL statement and returns
+    def sparql(self, statement, end_point='fcr:sparql', accept_format='text/csv'):
+        """DEPRECIATED
+        Method takes and executes a generic SPARQL statement and returns
         the result. NOTE: The Fedora 4 supports a limited subset of SPARQL,
         see <https://wiki.duraspace.org/display/FF/RESTful+HTTP+API+-+Search#RESTfulHTTPAPI-Search-SPARQLEndpoint>
         for more information.
 
         Args:
             statement(string): SPARQL statement
+            end_point(string): SPARQL URI end-point, default to fcr:sparql
             accept_format(string): Format for output, defaults to text/csv
 
         Returns:
@@ -577,8 +543,9 @@ class Repository(object):
             SPARQL statement
         """
         request = urllib.request.Request(
-            '/'.join([self.base_url, 'rest']),
+            '/'.join([self.base_url, 'rest', end_point]),
             data=statement.encode(),
+            method='POST',
             headers={"Context-Type": "application/sparql-query",
                      "Accept": accept_format})
         result = urllib.request.urlopen(request)
