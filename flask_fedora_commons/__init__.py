@@ -383,7 +383,7 @@ class Repository(object):
             self.create(entity_id)
         sparql_template = Template("""$prefix
         INSERT DATA {
-             <$entity> $prop_uri $value_str;
+             <$entity> $prop_uri $value_str ;
         }""")
         sparql = sparql_template.substitute(
             prefix=build_prefixes(self.namespaces),
@@ -395,7 +395,12 @@ class Repository(object):
             data=sparql.encode(),
             method='PATCH',
             headers={'Content-Type': 'application/sparql-update'})
-        response = urllib.request.urlopen(update_request)
+        try:
+            response = urllib.request.urlopen(update_request)
+        except urllib.error.HTTPError:
+            print("Error trying patch {}, sparql=\n{}".format(entity_uri,
+                sparql))
+            return False
         if response.code < 400:
             return True
         return False
